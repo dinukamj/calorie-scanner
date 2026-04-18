@@ -3,5 +3,5 @@ services:
     name: calorie-scanner
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn server:app
+    startCommand: gunicorn server:app --bind 0.0.0.0:$PORT
     plan: free
