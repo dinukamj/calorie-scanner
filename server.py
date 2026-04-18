@@ -2,12 +2,13 @@ import os
 import anthropic
 from flask import Flask, request, jsonify, send_from_directory
 
-app = Flask(__name__, static_folder="public")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+app = Flask(__name__, static_folder=os.path.join(BASE_DIR, "public"))
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 @app.route("/")
 def index():
-    return send_from_directory("public", "index.html")
+    return send_from_directory(os.path.join(BASE_DIR, "public"), "index.html")
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
