@@ -225,7 +225,7 @@
         }
       } catch (err) {
         spinner.classList.remove('visible');
-        resultCard.innerHTML = '<span style="color:#ff453a">Could not connect to server.</span>';
+        resultCard.innerHTML = '<span style="color:#ff453a">Error: ' + err.message + '</span>';
         resultCard.classList.add('visible');
       }
     };
