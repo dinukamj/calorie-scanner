@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="CalScan" />
+  <title>CalScan</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f0f0f;
+      color: #fff;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    header {
+      width: 100%;
+      padding: 54px 24px 16px;
+      text-align: center;
+    }
+
+    header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    header p {
+      font-size: 14px;
+      color: #888;
+      margin-top: 4px;
+    }
+
+    .camera-area {
+      width: 100%;
+      max-width: 420px;
+      padding: 0 20px;
+      margin-top: 20px;
+    }
+
+    #preview {
+      width: 100%;
+      aspect-ratio: 4/3;
+      object-fit: cover;
+      border-radius: 20px;
+      background: #1a1a1a;
+      display: block;
+    }
+
+    #preview.hidden { display: none; }
+
+    #placeholder {
+      width: 100%;
+      aspect-ratio: 4/3;
+      border-radius: 20px;
+      background: #1a1a1a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: #555;
+      font-size: 14px;
+    }
+
+    #placeholder svg { opacity: 0.4; }
+    #placeholder.hidden { display: none; }
+
+    .btn-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    button {
+      flex: 1;
+      padding: 16px;
+      border: none;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    button:active { opacity: 0.7; }
+
+    #scanBtn {
+      background: #30d158;
+      color: #000;
+    }
+
+    #clearBtn {
+      background: #2c2c2e;
+      color: #fff;
+      display: none;
+    }
+
+    #fileInput { display: none; }
+
+    .result-card {
+      width: 100%;
+      max-width: 420px;
+      margin: 20px 20px 40px;
+      padding: 20px;
+      background: #1c1c1e;
+      border-radius: 20px;
+      font-size: 15px;
+      line-height: 1.6;
+      display: none;
+      white-space: pre-wrap;
+    }
+
+    .result-card.visible { display: block; }
+
+    .result-card strong { color: #30d158; }
+
+    .spinner {
+      display: none;
+      width: 100%;
+      max-width: 420px;
+      margin-top: 20px;
+      text-align: center;
+      color: #888;
+      font-size: 14px;
+    }
+
+    .spinner.visible { display: block; }
+
+    .dot-anim::after {
+      content: '';
+      animation: dots 1.2s steps(3, end) infinite;
+    }
+
+    @keyframes dots {
+      0%   { content: '.'; }
+      33%  { content: '..'; }
+      66%  { content: '...'; }
+      100% { content: ''; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>CalScan</h1>
+  <p>Snap your food to see calories</p>
+</header>
+
+<div class="camera-area">
+  <div id="placeholder">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+      <circle cx="12" cy="13" r="4"/>
+    </svg>
+    Tap below to take a photo
+  </div>
+  <img id="preview" class="hidden" alt="Food preview" />
+
+  <div class="btn-row">
+    <button id="scanBtn">Take Photo</button>
+    <button id="clearBtn">Clear</button>
+  </div>
+
+  <input type="file" id="fileInput" accept="image/*" capture="environment" />
+</div>
+
+<div class="spinner" id="spinner">
+  <span class="dot-anim">Analyzing</span>
+</div>
+
+<div class="result-card" id="result"></div>
+
+<script>
+  const scanBtn = document.getElementById('scanBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const fileInput = document.getElementById('fileInput');
+  const preview = document.getElementById('preview');
+  const placeholder = document.getElementById('placeholder');
+  const spinner = document.getElementById('spinner');
+  const resultCard = document.getElementById('result');
+
+  scanBtn.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    // Show preview
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const dataUrl = e.target.result;
+      preview.src = dataUrl;
+      preview.classList.remove('hidden');
+      placeholder.classList.add('hidden');
+      clearBtn.style.display = 'block';
+      scanBtn.textContent = 'Retake';
+      resultCard.classList.remove('visible');
+      resultCard.innerHTML = '';
+
+      // Analyze
+      spinner.classList.add('visible');
+      try {
+        const res = await fetch('/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: dataUrl }),
+        });
+        const data = await res.json();
+        spinner.classList.remove('visible');
+
+        if (data.result) {
+          resultCard.innerHTML = formatResult(data.result);
+          resultCard.classList.add('visible');
+        } else {
+          resultCard.innerHTML = '<span style="color:#ff453a">Error: ' + (data.error || 'Unknown error') + '</span>';
+          resultCard.classList.add('visible');
+        }
+      } catch (err) {
+        spinner.classList.remove('visible');
+        resultCard.innerHTML = '<span style="color:#ff453a">Could not connect to server.</span>';
+        resultCard.classList.add('visible');
+      }
+    };
+    reader.readAsDataURL(file);
+    fileInput.value = '';
+  });
+
+  clearBtn.addEventListener('click', () => {
+    preview.src = '';
+    preview.classList.add('hidden');
+    placeholder.classList.remove('hidden');
+    clearBtn.style.display = 'none';
+    scanBtn.textContent = 'Take Photo';
+    resultCard.classList.remove('visible');
+    resultCard.innerHTML = '';
+  });
+
+  function formatResult(text) {
+    return text
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\n/g, '<br>');
+  }
+</script>
+</body>
+</html>
